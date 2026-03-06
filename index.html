@@ -10,22 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Roboto+Slab:wght@100..900&display=swap" rel="stylesheet">
 <style>
-  /*
-  :root {
-    --bg: #f1f0ec;/* #f5f4f4;
-    --surface: #e1dfd6;/*#afcfc9;
-    --surface2:  #27695c;
-    --border: #2e4643;
-    --accent: #1a584e;
-    --accent2: #b3573c;
-    --accent3: #231494;
-    --text: #363637;
-    --text-muted: #52565f;
-    --night: #2b259f;
-    --weekend: #751080;
-    --normal: #2f7d6e;
-  }*/
-
+  
    :root {
     --bg: #f9fafb;
     --surface: #eeeeee;
@@ -72,20 +57,19 @@
 
   header h1 {
     font-family: 'Roboto Slab', serif;
-    font-size: 2.5rem/*clamp(2rem, 5vw, 2rem);*/;
+    font-size: 2.5rem;
     font-weight: 800;
-    letter-spacing: -1px;
+    color: var(--accent);
+    /*letter-spacing: -1px;*/
     line-height: 1;
-    background: var(--accent);/*linear-gradient(135deg, var(--accent) 0%, var(--accent3) 100%);*/
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    background: var(--accent);
     background-clip: text;
   }
 
   header p {
     margin-top: 10px;
     color: var(--text-muted);
-    font-family: 'DM Mono', monospace;
+    font-family: /*'DM Mono', monospace;*/ 'Roboto Slab', serif; 
     font-size: 0.85rem;
     letter-spacing: 0.5px;
   }
@@ -523,6 +507,12 @@
     <div class="rota-summary-header"><h2>Rota Totals</h2></div>
     <div class="rota-grid" id="rotaGrid"></div>
   </div>
+
+  <footer style="margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); text-align: center;">
+    <p style="font-size: 0.75rem; color: var(--text-muted);">
+      © 2026 <strong>C Woods</strong>. All rights reserved. Unauthorised copying, modification or distribution of this tool is prohibited.
+    </p>
+  </footer>
 
   <!-- PRINT SHEET -->
   <div class="print-sheet" id="printSheet"></div>
@@ -984,6 +974,11 @@ function printSummary() {
     }, 0);
   });
 
+  // Total hours across all weeks row
+  page1 += `<tr class="totals-row">
+    <td class="left" colspan="8">Total Hours</td>
+    <td><strong>${fmtHours(rotaTotal)}</strong></td>
+  </tr>`;
 
   // Average row
  page1 += `<tr class="avg-row">
