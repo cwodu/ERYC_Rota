@@ -537,7 +537,8 @@ function addWeek() {
     days: DAYS.map(d => ({ name: d, start: '', lunchStart: '', lunchMins: 30, end: '', dayOff: false }))
   };
   weeks.push(weekData);
-  renderWeek(weekData);
+  //renderWeek(weekData);
+  rerenderAllWeeks();
   calculate();
 }
 
@@ -548,10 +549,15 @@ function renderWeek(week) {
   card.id = `week-${week.id}`;
 
   const canRemove = weeks.length > 1;
+  const weekIndex = weeks.findIndex(w => w.id === week.id);
   card.innerHTML = `
     <div class="week-header">
-      <h2>Week ${week.id}</h2>
-      ${canRemove ? `<button class="btn-remove-week" onclick="removeWeek(${week.id})">Remove Week</button>` : ''}
+      <h2>Week ${week.label ||week.id}</h2>
+      <div style="display:flex; gap:8px; align-items:center;">
+        ${weekIndex > 0 ? `<button class="btn-remove-week" style="background:#1d4ed8;" onclick="moveWeek(${week.id}, -1)">▲ Move Up</button>` : ''}
+        ${weekIndex < weeks.length - 1 ? `<button class="btn-remove-week" style="background:#1d4ed8;" onclick="moveWeek(${week.id}, 1)">▼ Move Down</button>` : ''}
+        ${canRemove ? `<button class="btn-remove-week" onclick="removeWeek(${week.id})">Remove Week</button>` : ''}
+      </div>
     </div>
     <div class="days-grid" id="days-${week.id}">
       ${week.days.map((day, i) => renderDay(week.id, day, i)).join('')}
@@ -621,9 +627,27 @@ function toggleDayOff(weekId, dayIdx) {
   calculate();
 }
 
+function rerenderAllWeeks() {
+  // Relabel weeks by their current position in the array
+  weeks.forEach((w, i) => { w.label = i + 1; });
+  const container = document.getElementById('weeksContainer');
+  container.innerHTML = '';
+  weeks.forEach(w => renderWeek(w));
+}
+
+function moveWeek(weekId, direction) {
+  const idx = weeks.findIndex(w => w.id === weekId);
+  const newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= weeks.length) return;
+  [weeks[idx], weeks[newIdx]] = [weeks[newIdx], weeks[idx]];
+  rerenderAllWeeks();
+  calculate();
+}
+
 function removeWeek(weekId) {
   weeks = weeks.filter(w => w.id !== weekId);
   document.getElementById(`week-${weekId}`).remove();
+  rerenderAllWeeks();
   calculate();
 }
 
