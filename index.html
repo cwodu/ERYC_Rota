@@ -60,10 +60,7 @@
     font-size: 2.5rem;
     font-weight: 800;
     color: var(--accent);
-    /*letter-spacing: -1px;*/
     line-height: 1;
-    background: var(--accent);
-    background-clip: text;
   }
 
   header p {
@@ -635,6 +632,8 @@ function rerenderAllWeeks() {
   weeks.forEach(w => renderWeek(w));
 }
 
+
+
 function moveWeek(weekId, direction) {
   const idx = weeks.findIndex(w => w.id === weekId);
   const newIdx = idx + direction;
@@ -728,19 +727,29 @@ function calcShift(dayIndex, startStr, lunchStartStr, lunchMins, endStr) {
   // Lunch: remove lunch from worked time
   // We'll treat lunch as a gap in the shift
   const lunchStart = parseTime(lunchStartStr);
-  const lunchEnd = lunchStart !== null ? lunchStart + lunchMins : null;
+  //const lunchEnd = lunchStart !== null ? lunchStart + lunchMins : null;
 
   // Build worked segments (excluding lunch)
+   const MIDNIGHT = 24 * 60;
   let segments = [];
-  if (lunchStart !== null && lunchMins > 0 && lunchStart >= start && lunchEnd <= end) {
-    if (lunchStart > start) segments.push([start, lunchStart]);
-    if (lunchEnd < end) segments.push([lunchEnd, end]);
+  if (lunchStart !== null && lunchMins > 0) {
+    let adjustedLunchStart = lunchStart;
+    if (crossesMidnight && lunchStart <= (end - MIDNIGHT)) {
+      adjustedLunchStart = lunchStart + MIDNIGHT;
+    }
+    const adjustedLunchEnd = adjustedLunchStart + lunchMins;
+    if (adjustedLunchStart >= start && adjustedLunchEnd <= end) {
+      if (adjustedLunchStart > start) segments.push([start, adjustedLunchStart]);
+      if (adjustedLunchEnd < end) segments.push([adjustedLunchEnd, end]);
+    } else {
+      segments.push([start, end]);
+    }
   } else {
     segments.push([start, end]);
   }
 
   // Now split segments across midnight boundary (1440 mins)
-  const MIDNIGHT = 24 * 60;
+
   let dayResults = {};
 
   function addToDay(dIdx, n, ni, w) {
