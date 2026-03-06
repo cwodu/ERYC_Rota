@@ -689,6 +689,7 @@ function classifySegment(startMins, endMins, dayIndex) {
   return { normal, night, weekend };
 }
 
+
 // Calculate a single day's shift, handling midnight crossover
 // Returns array of { dayIndex, normal, night, weekend, totalWorked } — one entry per calendar day touched
 function calcShift(dayIndex, startStr, lunchStartStr, lunchMins, endStr) {
@@ -751,10 +752,14 @@ function calcShift(dayIndex, startStr, lunchStartStr, lunchMins, endStr) {
 function calculate() {
   let rotaNormal = 0, rotaNight = 0, rotaWeekend = 0;
 
+  // First pass: calculate each week's dayTotals and collect Sunday overflows
+  const allDayTotals = [];
+  const sundayOverflows = [];
+
   for (const week of weeks) {
-    // We need to accumulate results per day (midnight overflow can add to next day)
-    let dayTotals = {}; // dayIndex -> {normal, night, weekend}
+    let dayTotals = {};
     DAYS.forEach((_, i) => { dayTotals[i] = { normal: 0, night: 0, weekend: 0 }; });
+    let sundayOverflow = { normal: 0, night: 0, weekend: 0 };
 
     for (let i = 0; i < week.days.length; i++) {
       const day = week.days[i];
@@ -764,13 +769,38 @@ function calculate() {
 
       for (const [dIdx, vals] of Object.entries(result.dayResults)) {
         const idx = parseInt(dIdx);
-        dayTotals[idx].normal += vals.normal;
-        dayTotals[idx].night += vals.night;
-        dayTotals[idx].weekend += vals.weekend;
+        if (i === 6 && idx === 0) {
+          // Sunday overnight — save overflow separately
+          sundayOverflow.normal += vals.normal;
+          sundayOverflow.night += vals.night;
+          sundayOverflow.weekend += vals.weekend;
+        } else {
+          dayTotals[idx].normal += vals.normal;
+          dayTotals[idx].night += vals.night;
+          dayTotals[idx].weekend += vals.weekend;
+        }
       }
     }
 
-    // Render day results
+    allDayTotals.push(dayTotals);
+    sundayOverflows.push(sundayOverflow);
+  }
+
+  // Second pass: apply each week's Sunday overflow to the NEXT week's Monday
+  // Last week's overflow loops back to week 1 Monday
+  for (let w = 0; w < weeks.length; w++) {
+    const overflow = sundayOverflows[w];
+    const targetWeek = (w + 1) % weeks.length;
+    allDayTotals[targetWeek][0].normal += overflow.normal;
+    allDayTotals[targetWeek][0].night += overflow.night;
+    allDayTotals[targetWeek][0].weekend += overflow.weekend;
+  }
+
+  // Now render using the corrected dayTotals
+  for (let wi = 0; wi < weeks.length; wi++) {
+    const week = weeks[wi];
+    const dayTotals = allDayTotals[wi];
+
     for (let i = 0; i < week.days.length; i++) {
       const day = week.days[i];
       const el = document.getElementById(`result-${week.id}-${i}`);
@@ -783,8 +813,6 @@ function calculate() {
 
       const t = dayTotals[i];
       const total = t.normal + t.night + t.weekend;
-
-      // Check if this day received overflow from previous night shift
       const result = calcShift(i, day.start, day.lunchStart, parseInt(day.lunchMins)||0, day.end);
       const hasMidnight = result && result.crossesMidnight;
 
@@ -805,7 +833,6 @@ function calculate() {
       `;
     }
 
-    // Week summary
     let wkNormal = 0, wkNight = 0, wkWeekend = 0;
     for (let i = 0; i < 7; i++) {
       wkNormal += dayTotals[i].normal;
@@ -840,6 +867,18 @@ function calculate() {
       <div class="rota-stat"><div class="label">Effective Hours</div><div class="value" style="color:var(--text)">${fmtHours(rotaEffective)}</div><div class="sub">with enhancements applied</div></div>
       <div class="rota-stat"><div class="label">Avg Weekly Hours</div><div class="value" style="color:var(--accent2)">${avgWeekly}</div><div class="sub">decimal hours per week</div></div>
     `;
+    document.getElementById('rotaAllowances').innerHTML = `
+      <div>
+        <div style="font-family:'DM Mono',monospace; font-size:0.65rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin-bottom:8px;">Night Allowance (Time + ⅓)</div>
+        <div style="font-size:1.8rem; font-weight:800; font-family:'DM Mono',monospace; color:var(--accent3);">${calcAllowance(rotaNight, weeks.length)}</div>
+        <div style="font-family:'DM Mono',monospace; font-size:0.7rem; color:var(--text-muted); margin-top:4px;">${fmtHours(rotaNight)} night hrs · (hrs ÷ weeks) × (52.143 ÷ 12)</div>
+      </div>
+      <div>
+        <div style="font-family:'DM Mono',monospace; font-size:0.65rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin-bottom:8px;">Weekend Allowance (Time + ½)</div>
+        <div style="font-size:1.8rem; font-weight:800; font-family:'DM Mono',monospace; color:var(--weekend);">${calcAllowance(rotaWeekend, weeks.length)}</div>
+        <div style="font-family:'DM Mono',monospace; font-size:0.7rem; color:var(--text-muted); margin-top:4px;">${fmtHours(rotaWeekend)} weekend hrs · (hrs ÷ weeks) × (52.143 ÷ 12)</div>
+      </div>
+    `;
   } else {
     rotaSummary.style.display = 'none';
   }
@@ -856,9 +895,15 @@ function calcAllowance(totalHours, numWeeks) {
 
 function buildWeekData() {
   let rotaNormal = 0, rotaNight = 0, rotaWeekend = 0;
+
+  const allDayTotals = [];
+  const sundayOverflows = [];
+
   const weekRows = weeks.map(week => {
     let dayTotals = {};
     DAYS.forEach((_, i) => { dayTotals[i] = { normal: 0, night: 0, weekend: 0 }; });
+    let sundayOverflow = { normal: 0, night: 0, weekend: 0 };
+
     for (let i = 0; i < week.days.length; i++) {
       const day = week.days[i];
       if (day.dayOff) continue;
@@ -866,11 +911,34 @@ function buildWeekData() {
       if (!result) continue;
       for (const [dIdx, vals] of Object.entries(result.dayResults)) {
         const idx = parseInt(dIdx);
-        dayTotals[idx].normal += vals.normal;
-        dayTotals[idx].night += vals.night;
-        dayTotals[idx].weekend += vals.weekend;
+        if (i === 6 && idx === 0) {
+          sundayOverflow.normal += vals.normal;
+          sundayOverflow.night += vals.night;
+          sundayOverflow.weekend += vals.weekend;
+        } else {
+          dayTotals[idx].normal += vals.normal;
+          dayTotals[idx].night += vals.night;
+          dayTotals[idx].weekend += vals.weekend;
+        }
       }
     }
+
+    allDayTotals.push(dayTotals);
+    sundayOverflows.push(sundayOverflow);
+    return { week, dayTotals };
+  });
+
+  // Apply Sunday overflows to next week's Monday, last week loops to first
+  for (let w = 0; w < weeks.length; w++) {
+    const overflow = sundayOverflows[w];
+    const targetWeek = (w + 1) % weeks.length;
+    allDayTotals[targetWeek][0].normal += overflow.normal;
+    allDayTotals[targetWeek][0].night += overflow.night;
+    allDayTotals[targetWeek][0].weekend += overflow.weekend;
+  }
+
+  // Now tally up totals per week
+  weekRows.forEach(({ week, dayTotals }, wi) => {
     let wkNormal = 0, wkNight = 0, wkWeekend = 0;
     for (let i = 0; i < 7; i++) {
       wkNormal += dayTotals[i].normal;
@@ -880,8 +948,11 @@ function buildWeekData() {
     rotaNormal += wkNormal;
     rotaNight += wkNight;
     rotaWeekend += wkWeekend;
-    return { week, dayTotals, wkNormal, wkNight, wkWeekend };
+    weekRows[wi].wkNormal = wkNormal;
+    weekRows[wi].wkNight = wkNight;
+    weekRows[wi].wkWeekend = wkWeekend;
   });
+
   return { weekRows, rotaNormal, rotaNight, rotaWeekend };
 }
 
