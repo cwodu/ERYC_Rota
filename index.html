@@ -840,7 +840,21 @@ function calculate() {
       if (!el) continue;
 
       if (day.dayOff) {
-        el.innerHTML = `<span class="breakdown" style="color:var(--text-muted)">Day off</span>`;
+        const t = dayTotals[i];
+        const overflowTotal = t.normal + t.night + t.weekend;
+        if (overflowTotal > 0) {
+          let breakdown = [];
+          if (t.normal > 0) breakdown.push(`<span class="hours-normal">${fmtHours(t.normal)} standard</span>`);
+          if (t.night > 0) breakdown.push(`<span class="hours-night">${fmtHours(t.night)} night</span>`);
+          if (t.weekend > 0) breakdown.push(`<span class="hours-weekend">${fmtHours(t.weekend)} weekend</span>`);
+          el.innerHTML = `
+            <span class="hours-total">${fmtHours(overflowTotal)}</span>
+            <span class="breakdown">${breakdown.join('<br>')}</span>
+            <div class="midnight-note">↪ overnight carry</div>
+          `;
+        } else {
+          el.innerHTML = `<span class="breakdown" style="color:var(--text-muted)">Day off</span>`;
+        }
         continue;
       }
 
@@ -1064,7 +1078,7 @@ function printSummary() {
         const t = dayTotals[i];
         const total = t.normal + t.night + t.weekend;
         const isOff = week.days[i].dayOff;
-        return `<td>${isOff ? '<em style="color:#aaa">Off</em>' : (total > 0 ? fmtHours(total) : '—')}</td>`;
+        return `<td>${isOff && total === 0 ? '<em style="color:#aaa">Off</em>' : (total > 0 ? fmtHours(total) : '—')}</td>`;
       }).join('')}
       <td><strong>${fmtHours(wkTotal)}</strong></td>
     </tr>`;
@@ -1145,7 +1159,20 @@ function printSummary() {
     week.days.forEach((day, i) => {
       const isWeekend = WEEKEND.includes(day.name);
       if (day.dayOff) {
-        page2 += `<tr><td class="left">${day.name}</td><td colspan="7" style="color:#aaa;font-style:italic">Day Off</td></tr>`;
+        const t = dayTotals[i];
+        const overflowTotal = t.normal + t.night + t.weekend;
+        if (overflowTotal > 0) {
+          page2 += `<tr>
+            <td class="left">${day.name} <em style="color:#aaa;font-size:9px">(day off)</em></td>
+            <td colspan="3" style="color:#aaa;font-style:italic">overnight carry</td>
+            <td>${t.normal > 0 ? fmtHours(t.normal) : '—'}</td>
+            <td>${t.night > 0 ? fmtHours(t.night) : '—'}</td>
+            <td>${t.weekend > 0 ? fmtHours(t.weekend) : '—'}</td>
+            <td><strong>${fmtHours(overflowTotal)}</strong></td>
+          </tr>`;
+        } else {
+          page2 += `<tr><td class="left">${day.name}</td><td colspan="7" style="color:#aaa;font-style:italic">Day Off</td></tr>`;
+        }
         return;
       }
       const t = dayTotals[i];
