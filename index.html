@@ -1003,10 +1003,20 @@ function buildWeekData() {
   return { weekRows, rotaNormal, rotaNight, rotaWeekend };
 }
 
+function escapeHTML(str) {
+  return str.replace(/[&<>"']/g, m => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[m]);
+}
+
 function printSummary() {
   calculate();
   const { weekRows, rotaNormal, rotaNight, rotaWeekend } = buildWeekData();
-  const employeeName = document.getElementById('employeeName').value.trim() || 'Not specified';
+  const employeeName = escapeHTML(document.getElementById('employeeName').value.trim()) || 'Not specified';
   const rotaStartDate = document.getElementById('rotaStartDate').value
     ? new Date(document.getElementById('rotaStartDate').value).toLocaleDateString('en-GB', {day:'numeric', month:'long', year:'numeric'})
     : 'Not specified';
