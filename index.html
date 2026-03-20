@@ -956,8 +956,9 @@ function buildWeekData() {
 
   const allDayTotals = [];
   const sundayOverflows = [];
+  const weekRowsBase = [];
 
-  const weekRows = weeks.map(week => {
+  weeks.forEach(week => {
     let dayTotals = {};
     DAYS.forEach((_, i) => { dayTotals[i] = { normal: 0, night: 0, weekend: 0 }; });
     let sundayOverflow = { normal: 0, night: 0, weekend: 0 };
@@ -983,7 +984,7 @@ function buildWeekData() {
 
     allDayTotals.push(dayTotals);
     sundayOverflows.push(sundayOverflow);
-    return { week, dayTotals };
+    weekRowsBase.push({ week });
   });
 
   // Apply Sunday overflows to next week's Monday, last week loops to first
@@ -995,8 +996,9 @@ function buildWeekData() {
     allDayTotals[targetWeek][0].weekend += overflow.weekend;
   }
 
-  // Now tally up totals per week
-  weekRows.forEach(({ week, dayTotals }, wi) => {
+  // Now tally up totals per week using the finalised allDayTotals
+  const weekRows = weekRowsBase.map(({ week }, wi) => {
+    const dayTotals = allDayTotals[wi];
     let wkNormal = 0, wkNight = 0, wkWeekend = 0;
     for (let i = 0; i < 7; i++) {
       wkNormal += dayTotals[i].normal;
@@ -1006,9 +1008,7 @@ function buildWeekData() {
     rotaNormal += wkNormal;
     rotaNight += wkNight;
     rotaWeekend += wkWeekend;
-    weekRows[wi].wkNormal = wkNormal;
-    weekRows[wi].wkNight = wkNight;
-    weekRows[wi].wkWeekend = wkWeekend;
+    return { week, dayTotals, wkNormal, wkNight, wkWeekend };
   });
 
   return { weekRows, rotaNormal, rotaNight, rotaWeekend };
