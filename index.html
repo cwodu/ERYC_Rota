@@ -1037,8 +1037,31 @@ function calculate() {
       }
       const missingLunch = shiftSpanMins > 300 && (!day.lunchStart || !(parseInt(day.lunchMins) > 0));
 
+      // Check if any lunch falls outside the shift window
+      let lunchOutside = false;
+      let lunchWarningMsg = '⚠ Shift exceeds 5 hours — lunch start time or duration missing';
+      if (day.lunchStart && start !== null && rawEnd !== null) {
+        let ls1 = parseTime(day.lunchStart);
+        let le1 = ls1 + (parseInt(day.lunchMins) || 0);
+        const shiftEnd = rawEnd <= start ? rawEnd + 1440 : rawEnd;
+        if (ls1 < start || le1 > shiftEnd) lunchOutside = true;
+      }
+      if (day.lunch2Start && start !== null && rawEnd !== null) {
+        let ls2 = parseTime(day.lunch2Start);
+        let le2 = ls2 + (parseInt(day.lunch2Mins) || 0);
+        const shiftEnd = rawEnd <= start ? rawEnd + 1440 : rawEnd;
+        if (ls2 < start || le2 > shiftEnd) lunchOutside = true;
+      }
+
+      if (lunchOutside) lunchWarningMsg = '⚠ A lunch break falls outside the shift start/end times';
+      if (missingLunch && lunchOutside) lunchWarningMsg = '⚠ Missing lunch break · a lunch also falls outside shift times';
+
       const warnEl = document.getElementById(`lunch-warn-${week.id}-${i}`);
-      if (warnEl) warnEl.style.display = missingLunch ? 'flex' : 'none';
+      if (warnEl) {
+        const show = missingLunch || lunchOutside;
+        warnEl.style.display = show ? 'flex' : 'none';
+        if (show) warnEl.textContent = lunchWarningMsg;
+      }
 
 
       let breakdown = [];
@@ -1549,8 +1572,38 @@ function validateBeforeAction(actionName) {
         problems.push(`Week ${week.label || week.id}, ${day.name}: has a start time but no end time`);
       if (!hasStart && hasEnd)
         problems.push(`Week ${week.label || week.id}, ${day.name}: has an end time but no start time`);
+
+      // Lunch checks
+      const start = parseTime(day.start);
+      const rawEnd = parseTime(day.end);
+      let shiftSpanMins = 0;
+      if (start !== null && rawEnd !== null) {
+        shiftSpanMins = rawEnd <= start ? (rawEnd + 1440) - start : rawEnd - start;
+      }
+      const shiftEnd = rawEnd !== null && start !== null ? (rawEnd <= start ? rawEnd + 1440 : rawEnd) : null;
+
+      if (shiftSpanMins > 300 && (!day.lunchStart || !(parseInt(day.lunchMins) > 0)))
+        problems.push(`Week ${week.label || week.id}, ${day.name}: shift exceeds 5 hours with no lunch break entered`);
+
+      if (day.lunchStart && start !== null && shiftEnd !== null) {
+        const ls1 = parseTime(day.lunchStart);
+        const le1 = ls1 + (parseInt(day.lunchMins) || 0);
+        if (ls1 < start || le1 > shiftEnd)
+          problems.push(`Week ${week.label || week.id}, ${day.name}: lunch break falls outside shift times`);
+      }
+
+      if (day.lunch2Start && start !== null && shiftEnd !== null) {
+        const ls2 = parseTime(day.lunch2Start);
+        const le2 = ls2 + (parseInt(day.lunch2Mins) || 0);
+        if (ls2 < start || le2 > shiftEnd)
+          problems.push(`Week ${week.label || week.id}, ${day.name}: 2nd lunch break falls outside shift times`);
+      }
     });
   }
+
+  
+
+  
 
   if (problems.length > 0) {
     alert(`Cannot ${actionName} — please fix the following before continuing:\n\n${problems.map(p => `• ${p}`).join('\n')}\n\nNote: times must be entered in full format in accordance to your system settings (eg. 16:00 or 4:00 PM).`);
