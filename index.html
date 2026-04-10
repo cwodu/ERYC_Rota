@@ -5,10 +5,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rota Hours Calculator</title>
+<!--Remove outside fonts
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Roboto+Slab:wght@100..900&display=swap" rel="stylesheet">
+-->
 <style>
   
    :root {
@@ -498,7 +500,10 @@
 
   <div class="actions">
     <button class="btn btn-primary" onclick="addWeek()">+ Add Week</button>
+    <button class="btn btn-secondary" onclick="exportCSV()">⬇ Download CSV</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('csvUpload').click()">⬆ Upload CSV</button>
     <button class="btn btn-print" onclick="printSummary()">🖨 Print Summary</button>
+    <input type="file" id="csvUpload" accept=".csv" style="display:none" onchange="handleCSVUpload(event)">
   </div>
 
   <div class="rota-summary" id="rotaSummary" style="display:none">
@@ -1223,6 +1228,133 @@ function printSummary() {
 
   document.getElementById('printSheet').innerHTML = sharedStyles + page1 + page2;
   window.print();
+}
+
+function exportCSV() {
+  const rows = ['ERYC Work Pattern'];
+  rows.push('week,day,start,lunchStart,lunchMins,end,dayOff');
+  weeks.forEach((week, wi) => {
+    week.days.forEach(day => {
+      rows.push([
+        wi + 1,
+        day.name,
+        day.start || '',
+        day.lunchStart || '',
+        day.lunchMins ?? 30,
+        day.end || '',
+        day.dayOff ? 'true' : 'false'
+      ].join(','));
+    });
+  });
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const empName = document.getElementById('employeeName').value.trim().replace(/[^a-z0-9]/gi, '_') || 'rota';
+  a.download = `ERYC_${empName}_rota.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function handleCSVUpload(event) {
+  const file = event.target.files[0];
+  event.target.value = ''; // reset so same file can be re-uploaded
+  if (!file) return;
+
+  // Validation a: file extension
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    alert('Invalid file type. Please upload a .csv file.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result.trim();
+    const lines = text.split(/\r?\n/);
+
+    // Validation b: compatibility marker on line 1
+    if (lines[0].trim() !== 'ERYC Work Pattern') {
+      alert('Incompatible file.\n\nThis CSV was not exported from the ERYC Rota Calculator. The file must begin with "ERYC Work Pattern" on the first line.');
+      return;
+    }
+
+    // Expect header on line 2, data from line 3 onwards
+    if (lines.length < 3) {
+      alert('The CSV file appears to be empty or incomplete.');
+      return;
+    }
+
+    const expectedHeader = 'week,day,start,lunchStart,lunchMins,end,dayOff';
+    if (lines[1].trim() !== expectedHeader) {
+      alert('CSV column headers do not match the expected format. The file may be from an older version or have been manually edited incorrectly.');
+      return;
+    }
+
+    // Parse rows
+    const dataLines = lines.slice(2).filter(l => l.trim() !== '');
+    const newWeeks = [];
+    let currentWeekNum = null;
+    let currentWeek = null;
+    let parseError = null;
+
+    for (let i = 0; i < dataLines.length; i++) {
+      const cols = dataLines[i].split(',');
+      if (cols.length < 7) {
+        parseError = `Row ${i + 3} has too few columns.`;
+        break;
+      }
+      const [weekNum, dayName, start, lunchStart, lunchMins, end, dayOff] = cols.map(c => c.trim());
+
+      if (!DAYS.includes(dayName)) {
+        parseError = `Row ${i + 3} contains an unrecognised day name: "${dayName}".`;
+        break;
+      }
+
+      if (weekNum !== currentWeekNum) {
+        if (currentWeek) newWeeks.push(currentWeek);
+        weekCount++;
+        currentWeek = {
+          id: weekCount,
+          days: DAYS.map(d => ({ name: d, start: '', lunchStart: '', lunchMins: 30, end: '', dayOff: false }))
+        };
+        currentWeekNum = weekNum;
+      }
+
+      const dayIndex = DAYS.indexOf(dayName);
+      currentWeek.days[dayIndex] = {
+        name: dayName,
+        start: start || '',
+        lunchStart: lunchStart || '',
+        lunchMins: parseInt(lunchMins) || 30,
+        end: end || '',
+        dayOff: dayOff === 'true'
+      };
+    }
+
+    if (parseError) {
+      alert('Error reading CSV:\n\n' + parseError + '\n\nImport cancelled.');
+      return;
+    }
+
+    if (currentWeek) newWeeks.push(currentWeek);
+
+    if (newWeeks.length === 0) {
+      alert('No week data found in the CSV file.');
+      return;
+    }
+
+    // Replace current data
+    weeks = newWeeks;
+    rerenderAllWeeks();
+    calculate();
+    alert(`Import successful! ${newWeeks.length} week${newWeeks.length !== 1 ? 's' : ''} loaded.`);
+  };
+
+  reader.onerror = function() {
+    alert('Failed to read the file. Please try again.');
+  };
+
+  reader.readAsText(file);
 }
 </script>
 </body>
