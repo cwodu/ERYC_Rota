@@ -288,13 +288,60 @@
   .lunch-warning {
     font-family: 'DM Mono', monospace;
     font-size: 0.7rem;
-    color: #ef4444;
-    /*grid-column: 1 / -1;*/
-    padding: 0px 24px 10px 24px;
+    font-weight: bold;
+    color:#fff;
+    background: #e02929;
+    border-radius: 3px;
+    padding: 8px 24px 10px 24px;
     display: flex;
     align-items: center;
     gap: 4px;
-    /*margin-top: -10px;*/
+  }
+
+  .lunch-add-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    align-self: flex-end;
+    margin: 0px 24px 0 -10px;
+    margin-bottom: 8px;
+  }
+
+  .lunch-add-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .lunch-add-btn.remove {
+    border-color: rgba(239,68,68,0.4);
+    color: #ef4444;
+  }
+
+  .lunch-add-btn.remove:hover {
+    background: rgba(239,68,68,0.1);
+  }
+
+  .lunch-group {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .lunch-row {
+    display: inline-flex;
+    gap: 7px;
+    align-items: flex-end;
   }
 
   .week-summary {
@@ -611,14 +658,40 @@ function renderDay(weekId, day, idx) {
             <label>Start</label>
             <input type="time" value="${day.start}" onchange="updateDay(${weekId},${idx},'start',this.value)" ${day.dayOff ? 'disabled' : ''}>
           </div>
-          <div class="input-group">
-            <label>Lunch Start</label>
-            <input type="time" value="${day.lunchStart}" onchange="updateDay(${weekId},${idx},'lunchStart',this.value)" ${day.dayOff ? 'disabled' : ''}>
+
+          <div class="lunch-group">
+            <div class="lunch-row">
+              <div class="input-group">
+                <label>Lunch Start</label>
+                <input type="time" value="${day.lunchStart}" onchange="updateDay(${weekId},${idx},'lunchStart',this.value)" ${day.dayOff ? 'disabled' : ''}>
+              </div>
+              <div class="input-group">
+                <label>Lunch (mins)</label>
+                <input type="number" min="0" max="120" value="${day.lunchMins}" onchange="updateDay(${weekId},${idx},'lunchMins',this.value)" ${day.dayOff ? 'disabled' : ''}>
+              </div>
+              ${!day.dayOff && !hasLunch2 ? `
+                <button class="lunch-add-btn" onclick="addLunch2(${weekId},${idx})" title="Add 2nd lunch">+</button>
+              ` : ''}
+            </div>
+
+            ${hasLunch2 ? `
+            <div class="lunch-row">
+              <div class="input-group">
+                <label>2nd Lunch Start</label>
+                <input type="time" value="${day.lunch2Start}" onchange="updateDay(${weekId},${idx},'lunch2Start',this.value)" ${day.dayOff ? 'disabled' : ''}>
+              </div>
+              <div class="input-group">
+                <label>2nd Lunch (mins)</label>
+                <div style="display:flex; gap:18px; align-items:center;">
+                  <input type="number" min="0" max="120" value="${day.lunch2Mins}" onchange="updateDay(${weekId},${idx},'lunch2Mins',this.value)" ${day.dayOff ? 'disabled' : ''}>
+                      ${!day.dayOff ? `<button class="lunch-add-btn remove" onclick="removeLunch2(${weekId},${idx})" title="Remove 2nd lunch">✕</button>` : ''}
+                  </div>
+                </div>
+              
+            </div>
+            ` : ''}
           </div>
-          <div class="input-group">
-            <label>Lunch (mins)</label>
-            <input type="number" min="0" max="120" value="${day.lunchMins}" onchange="updateDay(${weekId},${idx},'lunchMins',this.value)" ${day.dayOff ? 'disabled' : ''}>
-          </div>
+
           <div class="input-group">
             <label>End</label>
             <input type="time" value="${day.end}" onchange="updateDay(${weekId},${idx},'end',this.value)" ${day.dayOff ? 'disabled' : ''}>
@@ -627,25 +700,6 @@ function renderDay(weekId, day, idx) {
             <label>Status</label>
             <button class="toggle-btn ${day.dayOff ? 'day-off' : ''}" onclick="toggleDayOff(${weekId},${idx})">${day.dayOff ? 'Day Off' : 'Working'}</button>
           </div>
-          ${!day.dayOff ? `
-          <div class="input-group" id="lunch2-toggle-${weekId}-${idx}">
-            <label>&nbsp;</label>
-            ${hasLunch2
-              ? `<button class="toggle-btn" style="white-space:nowrap;font-size:0.7rem;" onclick="removeLunch2(${weekId},${idx})">✕ 2nd Lunch</button>`
-              : `<button class="toggle-btn" style="white-space:nowrap;font-size:0.7rem;" onclick="addLunch2(${weekId},${idx})">+ 2nd Lunch</button>`
-            }
-          </div>
-          ${hasLunch2 ? `
-          <div class="input-group">
-            <label>2nd Lunch Start</label>
-            <input type="time" value="${day.lunch2Start}" onchange="updateDay(${weekId},${idx},'lunch2Start',this.value)">
-          </div>
-          <div class="input-group">
-            <label>2nd Lunch (mins)</label>
-            <input type="number" min="0" max="120" value="${day.lunch2Mins}" onchange="updateDay(${weekId},${idx},'lunch2Mins',this.value)">
-          </div>
-          ` : ''}
-          ` : ''}
         </div>
         <div class="day-result" id="result-${weekId}-${idx}"><span class="breakdown" style="color:var(--text-muted)">Enter times</span></div>
       </div>
