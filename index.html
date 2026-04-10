@@ -152,15 +152,21 @@
     grid-template-columns: 100px 1fr auto;
     align-items: center;
     padding: 14px 24px;
-    border-bottom: 1px solid var(--border);
+    /*border-bottom: 1px solid var(--border);
+    */
     gap: 16px;
     transition: background 0.15s;
   }
 
-  .day-row:last-child { border-bottom: none; }
+  /*.day-row:last-child { border-bottom: none; }
   .day-row:hover { background: rgba(255,255,255,0.02); }
+  */
+  .day-wrapper { border-bottom: 1px solid var(--border); }
+  .day-wrapper:last-child { border-bottom: none; }
+  .day-wrapper:hover { background: rgba(255,255,255,0.02); }
 
-  .day-row.is-weekend .day-label { color: var(--weekend); }
+  /* .day-row.is-weekend .day-label { color: var(--weekend); }*/
+  .day-label.is-weekend { color: var(--weekend); }
 
   .day-label {
     font-weight: 700;
@@ -197,7 +203,7 @@
     font-family: 'DM Mono', monospace;
     font-size: 0.9rem;
     padding: 8px 10px;
-    width: 100px;
+    width: 150px;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
 
@@ -207,8 +213,13 @@
     box-shadow: 0 0 0 3px rgba(0,229,192,0.1);
   }
 
-  .day-row.is-off .input-group input,
+  /*.day-row.is-off .input-group input,
   .day-row.is-off .input-group label {
+    opacity: 0.25;
+    pointer-events: none;
+  }*/
+  .day-wrapper.is-off .input-group input,
+  .day-wrapper.is-off .input-group label {
     opacity: 0.25;
     pointer-events: none;
   }
@@ -272,6 +283,18 @@
     font-size: 0.7rem;
     color: var(--text-muted);
     line-height: 1.6;
+  }
+
+  .lunch-warning {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: #ef4444;
+    /*grid-column: 1 / -1;*/
+    padding: 0px 24px 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    /*margin-top: -10px;*/
   }
 
   .week-summary {
@@ -538,7 +561,7 @@ function addWeek() {
   const id = weekCount;
   const weekData = {
     id,
-    days: DAYS.map(d => ({ name: d, start: '', lunchStart: '', lunchMins: 30, end: '', dayOff: false }))
+    days: DAYS.map(d => ({ name: d, start: '', lunchStart: '', lunchMins: 30,  lunch2Start: '', lunch2Mins: 0, end: '', dayOff: false }))
   };
   weeks.push(weekData);
   //renderWeek(weekData);
@@ -578,32 +601,55 @@ function renderWeek(week) {
 
 function renderDay(weekId, day, idx) {
   const isWeekend = WEEKEND.includes(day.name);
+  const hasLunch2 = day.lunch2Start || day.lunch2Mins > 0;
   return `
-    <div class="day-row ${isWeekend ? 'is-weekend' : ''} ${day.dayOff ? 'is-off' : ''}" id="row-${weekId}-${idx}">
-      <div class="day-label">${day.name}</div>
-      <div class="time-inputs" id="inputs-${weekId}-${idx}">
-        <div class="input-group">
-          <label>Start</label>
-          <input type="time" value="${day.start}" onchange="updateDay(${weekId},${idx},'start',this.value)" ${day.dayOff ? 'disabled' : ''}>
+    <div class="day-wrapper ${day.dayOff ? 'is-off' : ''}" id="row-${weekId}-${idx}">
+      <div class="day-row ${isWeekend ? 'is-weekend' : ''}">
+        <div class="day-label ${isWeekend ? 'is-weekend' : ''}">${day.name}</div>
+        <div class="time-inputs" id="inputs-${weekId}-${idx}">
+          <div class="input-group">
+            <label>Start</label>
+            <input type="time" value="${day.start}" onchange="updateDay(${weekId},${idx},'start',this.value)" ${day.dayOff ? 'disabled' : ''}>
+          </div>
+          <div class="input-group">
+            <label>Lunch Start</label>
+            <input type="time" value="${day.lunchStart}" onchange="updateDay(${weekId},${idx},'lunchStart',this.value)" ${day.dayOff ? 'disabled' : ''}>
+          </div>
+          <div class="input-group">
+            <label>Lunch (mins)</label>
+            <input type="number" min="0" max="120" value="${day.lunchMins}" onchange="updateDay(${weekId},${idx},'lunchMins',this.value)" ${day.dayOff ? 'disabled' : ''}>
+          </div>
+          <div class="input-group">
+            <label>End</label>
+            <input type="time" value="${day.end}" onchange="updateDay(${weekId},${idx},'end',this.value)" ${day.dayOff ? 'disabled' : ''}>
+          </div>
+          <div class="off-toggle">
+            <label>Status</label>
+            <button class="toggle-btn ${day.dayOff ? 'day-off' : ''}" onclick="toggleDayOff(${weekId},${idx})">${day.dayOff ? 'Day Off' : 'Working'}</button>
+          </div>
+          ${!day.dayOff ? `
+          <div class="input-group" id="lunch2-toggle-${weekId}-${idx}">
+            <label>&nbsp;</label>
+            ${hasLunch2
+              ? `<button class="toggle-btn" style="white-space:nowrap;font-size:0.7rem;" onclick="removeLunch2(${weekId},${idx})">✕ 2nd Lunch</button>`
+              : `<button class="toggle-btn" style="white-space:nowrap;font-size:0.7rem;" onclick="addLunch2(${weekId},${idx})">+ 2nd Lunch</button>`
+            }
+          </div>
+          ${hasLunch2 ? `
+          <div class="input-group">
+            <label>2nd Lunch Start</label>
+            <input type="time" value="${day.lunch2Start}" onchange="updateDay(${weekId},${idx},'lunch2Start',this.value)">
+          </div>
+          <div class="input-group">
+            <label>2nd Lunch (mins)</label>
+            <input type="number" min="0" max="120" value="${day.lunch2Mins}" onchange="updateDay(${weekId},${idx},'lunch2Mins',this.value)">
+          </div>
+          ` : ''}
+          ` : ''}
         </div>
-        <div class="input-group">
-          <label>Lunch Start</label>
-          <input type="time" value="${day.lunchStart}" onchange="updateDay(${weekId},${idx},'lunchStart',this.value)" ${day.dayOff ? 'disabled' : ''}>
-        </div>
-        <div class="input-group">
-          <label>Lunch (mins)</label>
-          <input type="number" min="0" max="120" value="${day.lunchMins}" onchange="updateDay(${weekId},${idx},'lunchMins',this.value)" ${day.dayOff ? 'disabled' : ''}>
-        </div>
-        <div class="input-group">
-          <label>End</label>
-          <input type="time" value="${day.end}" onchange="updateDay(${weekId},${idx},'end',this.value)" ${day.dayOff ? 'disabled' : ''}>
-        </div>
-        <div class="off-toggle">
-          <label>Status</label>
-          <button class="toggle-btn ${day.dayOff ? 'day-off' : ''}" onclick="toggleDayOff(${weekId},${idx})">${day.dayOff ? 'Day Off' : 'Working'}</button>
-        </div>
+        <div class="day-result" id="result-${weekId}-${idx}"><span class="breakdown" style="color:var(--text-muted)">Enter times</span></div>
       </div>
-      <div class="day-result" id="result-${weekId}-${idx}"><span class="breakdown" style="color:var(--text-muted)">Enter times</span></div>
+      <div class="lunch-warning" id="lunch-warn-${weekId}-${idx}" style="display:none">⚠ Shift exceeds 5 hours — lunch start time or duration missing</div>
     </div>
   `;
 }
@@ -636,6 +682,24 @@ function toggleDayOff(weekId, dayIdx) {
   const week = weeks.find(w => w.id === weekId);
   if (!week) return;
   week.days[dayIdx].dayOff = !week.days[dayIdx].dayOff;
+  rerenderAllWeeks();
+  calculate();
+}
+
+function addLunch2(weekId, dayIdx) {
+  const week = weeks.find(w => w.id === weekId);
+  if (!week) return;
+  week.days[dayIdx].lunch2Start = '';
+  week.days[dayIdx].lunch2Mins = 30;
+  rerenderAllWeeks();
+  calculate();
+}
+
+function removeLunch2(weekId, dayIdx) {
+  const week = weeks.find(w => w.id === weekId);
+  if (!week) return;
+  week.days[dayIdx].lunch2Start = '';
+  week.days[dayIdx].lunch2Mins = 0;
   rerenderAllWeeks();
   calculate();
 }
@@ -731,40 +795,45 @@ function classifySegment(startMins, endMins, dayIndex) {
 
 // Calculate a single day's shift, handling midnight crossover
 // Returns array of { dayIndex, normal, night, weekend, totalWorked } — one entry per calendar day touched
-function calcShift(dayIndex, startStr, lunchStartStr, lunchMins, endStr) {
+function calcShift(dayIndex, startStr, lunchStartStr, lunchMins, endStr, lunch2StartStr, lunch2Mins) {
   const start = parseTime(startStr);
   let end = parseTime(endStr);
   if (start === null || end === null) return null;
 
-  // If end <= start, shift crosses midnight
   const crossesMidnight = end <= start;
   if (crossesMidnight) end += 24 * 60;
 
-  // Lunch: remove lunch from worked time
-  // We'll treat lunch as a gap in the shift
-  const lunchStart = parseTime(lunchStartStr);
-  //const lunchEnd = lunchStart !== null ? lunchStart + lunchMins : null;
+  const MIDNIGHT = 24 * 60;
 
-  // Build worked segments (excluding lunch)
-   const MIDNIGHT = 24 * 60;
-  let segments = [];
-  if (lunchStart !== null && lunchMins > 0) {
-    let adjustedLunchStart = lunchStart;
-    if (crossesMidnight && lunchStart <= (end - MIDNIGHT)) {
-      adjustedLunchStart = lunchStart + MIDNIGHT;
+  function buildSegments(shiftStart, shiftEnd, lunches) {
+    // lunches: array of { lunchStart (parsed mins), lunchMins }
+    // Sort lunch breaks by start time, adjust for midnight crossover, then cut them out
+    let cuts = [];
+    for (const { lunchStartParsed, mins } of lunches) {
+      if (lunchStartParsed === null || mins <= 0) continue;
+      let ls = lunchStartParsed;
+      if (crossesMidnight && ls <= (shiftEnd - MIDNIGHT)) ls += MIDNIGHT;
+      const le = ls + mins;
+      if (ls >= shiftStart && le <= shiftEnd) cuts.push([ls, le]);
     }
-    const adjustedLunchEnd = adjustedLunchStart + lunchMins;
-    if (adjustedLunchStart >= start && adjustedLunchEnd <= end) {
-      if (adjustedLunchStart > start) segments.push([start, adjustedLunchStart]);
-      if (adjustedLunchEnd < end) segments.push([adjustedLunchEnd, end]);
-    } else {
-      segments.push([start, end]);
+    cuts.sort((a, b) => a[0] - b[0]);
+
+    let segs = [];
+    let cursor = shiftStart;
+    for (const [ls, le] of cuts) {
+      if (ls > cursor) segs.push([cursor, ls]);
+      cursor = le;
     }
-  } else {
-    segments.push([start, end]);
+    if (cursor < shiftEnd) segs.push([cursor, shiftEnd]);
+    return segs;
   }
 
-  // Now split segments across midnight boundary (1440 mins)
+  const lunch1Parsed = parseTime(lunchStartStr);
+  const lunch2Parsed = parseTime(lunch2StartStr);
+  const segments = buildSegments(start, end, [
+    { lunchStartParsed: lunch1Parsed, mins: lunchMins },
+    { lunchStartParsed: lunch2Parsed, mins: lunch2Mins || 0 }
+  ]);
 
   let dayResults = {};
 
@@ -778,11 +847,9 @@ function calcShift(dayIndex, startStr, lunchStartStr, lunchMins, endStr) {
 
   for (const [s, e] of segments) {
     if (!crossesMidnight || e <= MIDNIGHT) {
-      // All on same day
       const { normal, night, weekend } = classifySegment(s, e, dayIndex);
       addToDay(dayIndex, normal, night, weekend);
     } else {
-      // Split at midnight
       if (s < MIDNIGHT) {
         const { normal, night, weekend } = classifySegment(s, MIDNIGHT, dayIndex);
         addToDay(dayIndex, normal, night, weekend);
@@ -813,7 +880,7 @@ function calculate() {
     for (let i = 0; i < week.days.length; i++) {
       const day = week.days[i];
       if (day.dayOff) continue;
-      const result = calcShift(i, day.start, day.lunchStart, parseInt(day.lunchMins) || 0, day.end);
+      const result = calcShift(i, day.start, day.lunchStart, parseInt(day.lunchMins) || 0, day.end, day.lunch2Start, parseInt(day.lunch2Mins) || 0);
       if (!result) continue;
 
       for (const [dIdx, vals] of Object.entries(result.dayResults)) {
@@ -876,13 +943,26 @@ function calculate() {
 
       const t = dayTotals[i];
       const total = t.normal + t.night + t.weekend;
-      const result = calcShift(i, day.start, day.lunchStart, parseInt(day.lunchMins)||0, day.end);
+      const result = calcShift(i, day.start, day.lunchStart, parseInt(day.lunchMins) || 0, day.end, day.lunch2Start, parseInt(day.lunch2Mins) || 0);
       const hasMidnight = result && result.crossesMidnight;
 
       if (total === 0) {
         el.innerHTML = `<span class="breakdown" style="color:var(--text-muted)">Enter times</span>`;
         continue;
       }
+
+      // Missing lunch warning: if shift > 5 hours and no lunch mins, show warning
+      const start = parseTime(day.start);
+      const rawEnd = parseTime(day.end);
+      let shiftSpanMins = 0;
+      if (start !== null && rawEnd !== null) {
+        shiftSpanMins = rawEnd <= start ? (rawEnd + 1440) - start : rawEnd - start;
+      }
+      const missingLunch = shiftSpanMins > 300 && (!day.lunchStart || !(parseInt(day.lunchMins) > 0));
+
+      const warnEl = document.getElementById(`lunch-warn-${week.id}-${i}`);
+      if (warnEl) warnEl.style.display = missingLunch ? 'flex' : 'none';
+
 
       let breakdown = [];
       if (t.normal > 0) breakdown.push(`<span class="hours-normal">${fmtHours(t.normal)} standard</span>`);
@@ -971,7 +1051,7 @@ function buildWeekData() {
     for (let i = 0; i < week.days.length; i++) {
       const day = week.days[i];
       if (day.dayOff) continue;
-      const result = calcShift(i, day.start, day.lunchStart, parseInt(day.lunchMins)||0, day.end);
+      const result = calcShift(i, day.start, day.lunchStart, parseInt(day.lunchMins) || 0, day.end, day.lunch2Start, parseInt(day.lunch2Mins) || 0);
       if (!result) continue;
       for (const [dIdx, vals] of Object.entries(result.dayResults)) {
         const idx = parseInt(dIdx);
@@ -1241,6 +1321,8 @@ function exportCSV() {
         day.start || '',
         day.lunchStart || '',
         day.lunchMins ?? 30,
+        day.lunch2Start || '',
+        day.lunch2Mins ?? 0,
         day.end || '',
         day.dayOff ? 'true' : 'false'
       ].join(','));
@@ -1284,8 +1366,7 @@ function handleCSVUpload(event) {
       return;
     }
 
-    const expectedHeader = 'week,day,start,lunchStart,lunchMins,end,dayOff';
-    if (lines[1].trim() !== expectedHeader) {
+    const expectedHeader = 'week,day,start,lunchStart,lunchMins,lunch2Start,lunch2Mins,end,dayOff';    if (lines[1].trim() !== expectedHeader) {
       alert('CSV column headers do not match the expected format. The file may be from an older version or have been manually edited incorrectly.');
       return;
     }
@@ -1303,8 +1384,7 @@ function handleCSVUpload(event) {
         parseError = `Row ${i + 3} has too few columns.`;
         break;
       }
-      const [weekNum, dayName, start, lunchStart, lunchMins, end, dayOff] = cols.map(c => c.trim());
-
+      const [weekNum, dayName, start, lunchStart, lunchMins, lunch2Start, lunch2Mins, end, dayOff] = cols.map(c => c.trim());
       if (!DAYS.includes(dayName)) {
         parseError = `Row ${i + 3} contains an unrecognised day name: "${dayName}".`;
         break;
@@ -1326,6 +1406,8 @@ function handleCSVUpload(event) {
         start: start || '',
         lunchStart: lunchStart || '',
         lunchMins: parseInt(lunchMins) || 30,
+        lunch2Start: lunch2Start || '',
+        lunch2Mins: parseInt(lunch2Mins) || 0,
         end: end || '',
         dayOff: dayOff === 'true'
       };
