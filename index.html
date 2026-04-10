@@ -187,6 +187,11 @@
     gap: 4px;
   }
 
+  .input-group input[type="time"]:invalid {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
+}
+
   .input-group label {
     font-family: 'DM Mono', monospace;
     font-size: 0.65rem;
@@ -287,11 +292,10 @@
 
   .lunch-warning {
     font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: bold;
     color:#fff;
     background: #e02929;
-    border-radius: 3px;
     padding: 8px 24px 10px 24px;
     display: flex;
     align-items: center;
@@ -711,7 +715,26 @@ function renderDay(weekId, day, idx) {
 function updateDay(weekId, dayIdx, field, value) {
   const week = weeks.find(w => w.id === weekId);
   if (!week) return;
-  week.days[dayIdx][field] = field === 'lunchMins' ? parseInt(value) || 0 : value;
+
+  // For time fields, check the input's validity directly
+  if (field === 'start' || field === 'end' || field === 'lunchStart' || field === 'lunch2Start') {
+    // Find the input element and check validity
+    const row = document.getElementById(`row-${weekId}-${dayIdx}`);
+    if (row) {
+      const inputs = row.querySelectorAll('input[type="time"]');
+      inputs.forEach(input => {
+        if (input.value === '' || input.validity.valid) {
+          input.style.borderColor = '';
+          input.removeAttribute('title');
+        }
+      });
+    }
+    // If value is non-empty but invalid, the browser will have passed '' — so just store it
+    week.days[dayIdx][field] = value;
+  } else {
+    week.days[dayIdx][field] = field === 'lunchMins' || field === 'lunch2Mins' ? parseInt(value) || 0 : value;
+  }
+
   calculate();
 }
 
@@ -1164,6 +1187,7 @@ function escapeHTML(str) {
 }
 
 function printSummary() {
+  if (!validateBeforeAction('print')) return;
   calculate();
   const { weekRows, rotaNormal, rotaNight, rotaWeekend } = buildWeekData();
   const employeeName = escapeHTML(document.getElementById('employeeName').value.trim()) || 'Not specified';
@@ -1365,6 +1389,7 @@ function printSummary() {
 }
 
 function exportCSV() {
+  if (!validateBeforeAction('download')) return;
   const rows = ['ERYC Work Pattern'];
   rows.push('week,day,start,lunchStart,lunchMins,end,dayOff');
   weeks.forEach((week, wi) => {
@@ -1491,6 +1516,47 @@ function handleCSVUpload(event) {
   };
 
   reader.readAsText(file);
+}
+
+function validateBeforeAction(actionName) {
+  const problems = [];
+
+  for (const week of weeks) {
+    week.days.forEach((day, i) => {
+      if (day.dayOff) return;
+
+      // Check DOM inputs for badInput (partially typed but incomplete)
+      const row = document.getElementById(`row-${week.id}-${i}`);
+      if (row) {
+        row.querySelectorAll('input[type="time"]').forEach(input => {
+          if (input.validity.badInput) {
+            const label = input.closest('.input-group')?.querySelector('label')?.textContent || 'time field';
+            problems.push(`Week ${week.label || week.id}, ${day.name}: incomplete value in "${label.trim()}"`);
+            input.style.borderColor = '#ef4444';
+            input.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.15)';
+          }
+        });
+      }
+
+      const hasStart = !!day.start;
+      const hasEnd = !!day.end;
+      const hasLunchStart = !!day.lunchStart;
+      const hasLunchMins = parseInt(day.lunchMins) > 0;
+      const hasLunch2Start = !!day.lunch2Start;
+      const hasLunch2Mins = parseInt(day.lunch2Mins) > 0;
+
+      if (hasStart && !hasEnd)
+        problems.push(`Week ${week.label || week.id}, ${day.name}: has a start time but no end time`);
+      if (!hasStart && hasEnd)
+        problems.push(`Week ${week.label || week.id}, ${day.name}: has an end time but no start time`);
+    });
+  }
+
+  if (problems.length > 0) {
+    alert(`Cannot ${actionName} — please fix the following before continuing:\n\n${problems.map(p => `• ${p}`).join('\n')}\n\nNote: times must be entered in full format in accordance to your system settings (eg. 16:00 or 4:00 PM).`);
+    return false;
+  }
+  return true;
 }
 </script>
 </body>
