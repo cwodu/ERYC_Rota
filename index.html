@@ -192,6 +192,7 @@
   box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
 }
 
+
   .input-group label {
     font-family: 'DM Mono', monospace;
     font-size: 0.65rem;
@@ -1040,18 +1041,20 @@ function calculate() {
       // Check if any lunch falls outside the shift window
       let lunchOutside = false;
       let lunchWarningMsg = '⚠ Shift exceeds 5 hours — lunch start time or duration missing';
-      if (day.lunchStart && start !== null && rawEnd !== null) {
-        let ls1 = parseTime(day.lunchStart);
-        let le1 = ls1 + (parseInt(day.lunchMins) || 0);
-        const shiftEnd = rawEnd <= start ? rawEnd + 1440 : rawEnd;
-        if (ls1 < start || le1 > shiftEnd) lunchOutside = true;
+      
+      const crossesMidnightShift = rawEnd !== null && start !== null && rawEnd <= start;
+      const shiftEndMins = rawEnd !== null && start !== null ? (crossesMidnightShift ? rawEnd + 1440 : rawEnd) : null;
+
+      function checkLunchOutside(lunchStartStr, lunchMinsVal) {
+        if (!lunchStartStr || start === null || shiftEndMins === null) return false;
+        let ls = parseTime(lunchStartStr);
+        if (crossesMidnightShift && ls < start) ls += 1440;
+        const le = ls + (parseInt(lunchMinsVal) || 0);
+        return ls < start || le > shiftEndMins;
       }
-      if (day.lunch2Start && start !== null && rawEnd !== null) {
-        let ls2 = parseTime(day.lunch2Start);
-        let le2 = ls2 + (parseInt(day.lunch2Mins) || 0);
-        const shiftEnd = rawEnd <= start ? rawEnd + 1440 : rawEnd;
-        if (ls2 < start || le2 > shiftEnd) lunchOutside = true;
-      }
+
+      if (checkLunchOutside(day.lunchStart, day.lunchMins)) lunchOutside = true;
+      if (checkLunchOutside(day.lunch2Start, day.lunch2Mins)) lunchOutside = true;
 
       if (lunchOutside) lunchWarningMsg = '⚠ A lunch break falls outside the shift start/end times';
       if (missingLunch && lunchOutside) lunchWarningMsg = '⚠ Missing lunch break · a lunch also falls outside shift times';
@@ -1413,8 +1416,27 @@ function printSummary() {
 
 function exportCSV() {
   if (!validateBeforeAction('download')) return;
-  const rows = ['ERYC Work Pattern'];
-  rows.push('week,day,start,lunchStart,lunchMins,end,dayOff');
+
+  const { weekRows, rotaNormal, rotaNight, rotaWeekend } = buildWeekData();
+  const numWeeks = weeks.length;
+  const rotaTotal = rotaNormal + rotaNight + rotaWeekend;
+  const nightAllowance = calcAllowance(rotaNight, numWeeks);
+  const weekendAllowance = calcAllowance(rotaWeekend, numWeeks);
+  const avgWeekly = numWeeks > 0 ? (rotaTotal / 60 / numWeeks).toFixed(2) : '0.00';
+  const empName = document.getElementById('employeeName').value.trim();
+
+  const rows = [];
+  rows.push('ERYC Work Pattern');
+  // Human-readable summary block — prefixed with # so they're clearly non-data
+  if (empName) rows.push(`# Employee: ${empName}`);
+  rows.push(`# Total Hours: ${fmtHours(rotaTotal)} across ${numWeeks} week${numWeeks !== 1 ? 's' : ''}`);
+  rows.push(`# Average Weekly Hours: ${avgWeekly} hrs`);
+  rows.push(`# Night Enhancement Allowance: ${nightAllowance}`);
+  rows.push(`# Weekend Enhancement Allowance: ${weekendAllowance}`);
+  rows.push(`# Generated: ${new Date().toLocaleDateString('en-GB', {weekday:'long', year:'numeric', month:'long', day:'numeric'})}`);
+  rows.push('# --- Rota Data Below --- Do not edit the following lines ---');
+  rows.push('week,day,start,lunchStart,lunchMins,lunch2Start,lunch2Mins,end,dayOff');
+
   weeks.forEach((week, wi) => {
     week.days.forEach(day => {
       rows.push([
@@ -1430,12 +1452,13 @@ function exportCSV() {
       ].join(','));
     });
   });
+
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const empName = document.getElementById('employeeName').value.trim().replace(/[^a-z0-9]/gi, '_') || 'rota';
-  a.download = `ERYC_${empName}_rota.csv`;
+  const safeName = empName.replace(/[^a-z0-9]/gi, '_') || 'rota';
+  a.download = `ERYC_${safeName}_rota.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -1468,13 +1491,18 @@ function handleCSVUpload(event) {
       return;
     }
 
-    const expectedHeader = 'week,day,start,lunchStart,lunchMins,lunch2Start,lunch2Mins,end,dayOff';    if (lines[1].trim() !== expectedHeader) {
+    const expectedHeader = 'week,day,start,lunchStart,lunchMins,lunch2Start,lunch2Mins,end,dayOff';
+
+    // Skip comment lines (starting with #) to find the column header
+    const headerLineIndex = lines.findIndex((l, idx) => idx > 0 && !l.trim().startsWith('#'));
+    if (headerLineIndex === -1 || lines[headerLineIndex].trim() !== expectedHeader) {
       alert('CSV column headers do not match the expected format. The file may be from an older version or have been manually edited incorrectly.');
       return;
     }
 
-    // Parse rows
-    const dataLines = lines.slice(2).filter(l => l.trim() !== '');
+    // Parse rows — everything after the header, skipping blanks and comments
+    const dataLines = lines.slice(headerLineIndex + 1).filter(l => l.trim() !== '' && !l.trim().startsWith('#'));
+
     const newWeeks = [];
     let currentWeekNum = null;
     let currentWeek = null;
@@ -1585,19 +1613,24 @@ function validateBeforeAction(actionName) {
       if (shiftSpanMins > 300 && (!day.lunchStart || !(parseInt(day.lunchMins) > 0)))
         problems.push(`Week ${week.label || week.id}, ${day.name}: shift exceeds 5 hours with no lunch break entered`);
 
-      if (day.lunchStart && start !== null && shiftEnd !== null) {
-        const ls1 = parseTime(day.lunchStart);
-        const le1 = ls1 + (parseInt(day.lunchMins) || 0);
-        if (ls1 < start || le1 > shiftEnd)
-          problems.push(`Week ${week.label || week.id}, ${day.name}: lunch break falls outside shift times`);
+      const crossesMidnight = rawEnd !== null && start !== null && rawEnd <= start;
+
+      function lunchOutsideShift(lunchStartStr, lunchMinsVal) {
+        if (!lunchStartStr || start === null || shiftEnd === null) return false;
+        let ls = parseTime(lunchStartStr);
+        // If shift crosses midnight and lunch time is earlier in the day than shift start,
+        // it must be on the next calendar day — add 1440 to compare correctly
+        if (crossesMidnight && ls < start) ls += 1440;
+        const le = ls + (parseInt(lunchMinsVal) || 0);
+        return ls < start || le > shiftEnd;
       }
 
-      if (day.lunch2Start && start !== null && shiftEnd !== null) {
-        const ls2 = parseTime(day.lunch2Start);
-        const le2 = ls2 + (parseInt(day.lunch2Mins) || 0);
-        if (ls2 < start || le2 > shiftEnd)
-          problems.push(`Week ${week.label || week.id}, ${day.name}: 2nd lunch break falls outside shift times`);
-      }
+      if (day.lunchStart && lunchOutsideShift(day.lunchStart, day.lunchMins))
+        problems.push(`Week ${week.label || week.id}, ${day.name}: lunch break falls outside shift times`);
+
+      if (day.lunch2Start && lunchOutsideShift(day.lunch2Start, day.lunch2Mins))
+        problems.push(`Week ${week.label || week.id}, ${day.name}: 2nd lunch break falls outside shift times`);
+
     });
   }
 
