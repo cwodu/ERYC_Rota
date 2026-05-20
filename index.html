@@ -665,18 +665,20 @@ function renderDay(weekId, day, idx) {
           </div>
 
           <div class="lunch-group">
-            <div class="lunch-row">
+           <div class="lunch-row">
               <div class="input-group">
                 <label>Lunch Start</label>
                 <input type="time" value="${day.lunchStart}" onchange="updateDay(${weekId},${idx},'lunchStart',this.value)" ${day.dayOff ? 'disabled' : ''}>
               </div>
               <div class="input-group">
                 <label>Lunch (mins)</label>
-                <input type="number" min="0" max="120" value="${day.lunchMins}" onchange="updateDay(${weekId},${idx},'lunchMins',this.value)" ${day.dayOff ? 'disabled' : ''}>
+                <div style="display:flex; gap:18px; align-items:center;">
+                  <input type="number" min="0" max="120" value="${day.lunchMins}" onchange="updateDay(${weekId},${idx},'lunchMins',this.value)" ${day.dayOff ? 'disabled' : ''}>
+                  ${!day.dayOff && !hasLunch2 ? `
+                    <button class="lunch-add-btn" onclick="addLunch2(${weekId},${idx})" title="Add 2nd lunch">+</button>
+                  ` : ''}
+                </div>
               </div>
-              ${!day.dayOff && !hasLunch2 ? `
-                <button class="lunch-add-btn" onclick="addLunch2(${weekId},${idx})" title="Add 2nd lunch">+</button>
-              ` : ''}
             </div>
 
             ${hasLunch2 ? `
